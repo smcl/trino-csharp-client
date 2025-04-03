@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Trino.Client.Utils
@@ -25,37 +25,63 @@ namespace Trino.Client.Utils
 
         protected virtual string BuildFunctionStatement()
         {
-            StringBuilder stringBuilder = new StringBuilder();
+            var fullFunctionName = BuildFullFunctionName();
+            var parameterString = string.Join(", ", FormatParameters());
+
+            return $"{fullFunctionName}({parameterString})";
+        }
+
+        private string BuildFullFunctionName()
+        {
             if (!string.IsNullOrEmpty(catalog))
             {
-                stringBuilder.Append(this.catalog);
-                stringBuilder.Append(".");
+                return $"{catalog}.{functionName}";
             }
-            stringBuilder.Append(this.functionName);
-            stringBuilder.Append("(");
 
-            for (int i = 0; i < Parameters.Count; i++)
+            return functionName;
+        }
+
+        private IEnumerable<string> FormatParameters()
+        {
+            foreach (var parameter in Parameters)
             {
-                if (i > 0)
+                if (IsNumeric(parameter))
                 {
-                    stringBuilder.Append(", ");
+                    yield return parameter.ToString();
                 }
-
-                // if parameter is a digit, do not quote it
-                if (Parameters[i] is int || Parameters[i] is long || Parameters[i] is float || Parameters[i] is double)
+                else if (parameter is bool)
                 {
-                    stringBuilder.Append(Parameters[i]);
+                    yield return (bool)parameter ? "1" : "0";
+                }
+                else if (parameter is DateTime)
+                {
+                    yield return QuoteParameter(((DateTime)parameter).ToString("s"));
+                }
+                else if (parameter is DateTimeOffset)
+                {
+                    yield return QuoteParameter(((DateTimeOffset)parameter).ToString("s"));
                 }
                 else
                 {
-                    stringBuilder.Append("'");
-                    stringBuilder.Append(Parameters[i]);
-                    stringBuilder.Append("'");
+                    yield return QuoteParameter(parameter.ToString());
                 }
             }
-            stringBuilder.Append(")");
+        }
 
-            return stringBuilder.ToString();
+        private static bool IsNumeric(object parameter)
+        {
+            return parameter is byte || parameter is sbyte
+                || parameter is short || parameter is ushort
+                || parameter is int || parameter is uint
+                || parameter is long || parameter is ulong
+                || parameter is IntPtr || parameter is UIntPtr
+                || parameter is float || parameter is double
+                || parameter is decimal;
+        }
+
+        private static string QuoteParameter(string formattedParameter)
+        {
+            return $"'{formattedParameter}'";
         }
     }
 }
